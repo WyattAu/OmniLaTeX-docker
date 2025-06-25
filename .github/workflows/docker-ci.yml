@@ -3,13 +3,13 @@ name: Docker Image CI/CD
 on:
   push:
     branches: [main]
-    tags: [v*.*.*]
+    tags: [v*]
   pull_request:
     branches: [main]
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/${{ github.event.repository.name }}
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-scan-push:
@@ -40,11 +40,9 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=tag
-            type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha            
+            type=sha
 
       - name: Build and Scan
         uses: docker/build-push-action@v5
@@ -54,11 +52,9 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           sbom: true
-          provenance: true
-          secrets: |
-            "npm=${{ secrets.NPM_TOKEN }}"            
+          platforms: linux/amd64,linux/arm64
 
-      - name: Trivy Vulnerability Scan
+      - name: Vulnerability Scan
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ steps.meta.outputs.tags }}
@@ -67,7 +63,7 @@ jobs:
           severity: 'HIGH,CRITICAL'
           ignore-unfixed: true
 
-      - name: Upload SARIF Report
+      - name: Upload Security Report
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: 'trivy-results.sarif'
