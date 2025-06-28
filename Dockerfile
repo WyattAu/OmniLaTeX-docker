@@ -24,7 +24,7 @@ RUN apt-get update && \
     python3 \
     python3-pygments \
     git \
-    openjdk-24-jre-headless \
+    default-jre-headless \
     inkscape \
     gnuplot-nox \
     ghostscript \
