@@ -59,7 +59,7 @@ collection-pictures 1
 collection-plaingeneric 1
 collection-publishers 1
 collection-xetex 0
-collection-context 0 # Activate if context is used
+collection-context 0
 collection-metapost 0
 collection-pstricks 0
 collection-texworks 0
