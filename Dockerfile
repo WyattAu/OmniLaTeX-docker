@@ -8,8 +8,12 @@ ARG _BUILD_CONTEXT_PREFIX=""
 FROM ${BASE_OS}:${OS_VERSION} AS base
 
 # Combine package installations and their cleanup
-RUN apt-get update && \
-    apt-get install --no-install-recommends -y \
+
+#RUN apt-get update && \
+#    apt-get install --no-install-recommends -y \
+
+# Use install_packages provided by minideb
+RUN install_packages\
     locales \
     wget \
     curl \
