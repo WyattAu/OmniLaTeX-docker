@@ -24,7 +24,7 @@ RUN apt-get update && \
     python3 \
     python3-pygments \
     git \
-    default-jre \
+    openjdk-24-jre-headless \
     inkscape \
     gnuplot-nox \
     ghostscript \
@@ -33,6 +33,7 @@ RUN apt-get update && \
     pandoc \
     cabextract && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # Set global encoding
@@ -56,10 +57,9 @@ RUN chmod +x texlive.sh && \
     ./texlive.sh get_installer ${TL_VERSION} && \
     wget -nv https://github.com/Wandmalfarbe/pandoc-latex-template/releases/latest/download/${EISVOGEL_ARCHIVE} && \
     mkdir -p ${INSTALL_TL_DIR} eisvogel && \
-    tar --extract --file=${TL_INSTALL_ARCHIVE} --directory=${INSTALL_TL_DIR} --strip-components 1
-
-# Extract Eisvogel template to its own directory
-RUN tar --extract --file=${EISVOGEL_ARCHIVE} --directory=eisvogel --strip-components=1
+    tar --extract --file=${TL_INSTALL_ARCHIVE} --directory=${INSTALL_TL_DIR} --strip-components 1 && \
+    tar --extract --file=${EISVOGEL_ARCHIVE} --directory=eisvogel --strip-components=1 &&\
+    rm -f ${TL_INSTALL_ARCHIVE} ${EISVOGEL_ARCHIVE}
 
 # Main stage
 FROM base AS main
@@ -70,7 +70,7 @@ ARG _BUILD_CONTEXT_PREFIX
 ARG USER="tex"
 ARG TL_PROFILE="texlive.profile"
 ARG TMP_TL_PROFILE="${TL_PROFILE}.tmp"
-ARG INSTALL_TL_DIR="install-tl"  # Must match downloads stage
+ARG INSTALL_TL_DIR="install-tl"
 
 # Create group and user with explicit UID/GID
 RUN groupadd --gid 1000 ${USER} && \
