@@ -37,15 +37,10 @@ TEXMFCONFIG /home/${USER}/.texlive/texmf-config
 # TEXMFSYSCONFIG /usr/local/texlive/<version>/texmf-config
 # TEXMFSYSVAR /usr/local/texlive/<version>/texmf-var
 # TEXMFLOCAL /usr/local/texlive/texmf-local
-#
-# -------------------------------------------------------------------------------
-# Collections of packages; for their contents, see
-# http://mirror.ctan.org/systems/texlive/tlnet/tlpkg/texlive.tlpdb
-# and search for 'name collection-<name>', e.g. 'name collection-basic'.
-# At the time of writing, the following encompasses all available collections.
-# Only the core ones with very few supported languages are enabled. For example,
-# just including 'collection-langjapanese' requires 800MB of space.
-# -------------------------------------------------------------------------------
+
+# Refer to https://github.com/orgs/OpenMandrivaAssociation/repositories?q=texlive-collection for dependencies of each collection. Full details refer to http://mirror.ctan.org/systems/texlive/tlnet/tlpkg/texlive.tlpdb
+
+# Core
 collection-basic 1
 collection-bibtexextra 1
 collection-binextra 1
@@ -53,28 +48,34 @@ collection-fontsextra 1
 collection-fontsrecommended 1
 collection-fontutils 1
 collection-formatsextra 1
-collection-langenglish 1
-collection-langeuropean 1
-collection-langgerman 1
 collection-latex 1
 collection-latexextra 1
 collection-latexrecommended 1
 collection-luatex 1
-collection-mathscience 1
+
+
+# Tooling 
 collection-pictures 1
 collection-plaingeneric 1
 collection-publishers 1
-collection-xetex 1
-# -------------------------------------------------------------------------------
-# Enable the following disabled ones as needed. They are included here so
-# everyone can see what is available; as many as possible are disabled, since
-# image size matters. The default is aimed at documents in the sciences domain.
-# Therefore, everything else is disabled. This includes various languages, so
-# activate your missing language here!
-# -------------------------------------------------------------------------------
-collection-context 0
+collection-xetex 0
+collection-context 0 # Activate if context is used
+collection-metapost 0
+collection-pstricks 0
+collection-texworks 0
+collection-wintools 0
+
+# Domain Specific
+collection-mathscience 1
+collection-humanities 1
+collection-music 1
 collection-games 0
-collection-humanities 0
+
+# Language
+collection-langenglish 1
+collection-langeuropean 1
+collection-langgerman 1
+
 collection-langarabic 0
 collection-langchinese 0
 collection-langcjk 0
@@ -89,11 +90,9 @@ collection-langother 0
 collection-langpolish 0
 collection-langportuguese 0
 collection-langspanish 0
-collection-metapost 0
-collection-music 0
-collection-pstricks 0
-collection-texworks 0
-collection-wintools 0
+
+
+
 # -------------------------------------------------------------------------------
 # Options for TeXLive installation
 # -------------------------------------------------------------------------------
