@@ -58,8 +58,8 @@ RUN chmod +x texlive.sh && \
     wget -nv https://github.com/Wandmalfarbe/pandoc-latex-template/releases/latest/download/${EISVOGEL_ARCHIVE} && \
     mkdir -p ${INSTALL_TL_DIR} eisvogel && \
     tar --extract --file=${TL_INSTALL_ARCHIVE} --directory=${INSTALL_TL_DIR} --strip-components 1 && \
-    tar --extract --file=${EISVOGEL_ARCHIVE} --directory=eisvogel --strip-components=1 &&\
-    rm -f ${TL_INSTALL_ARCHIVE} ${EISVOGEL_ARCHIVE}
+    tar --extract --file=${EISVOGEL_ARCHIVE} --directory=eisvogel --strip-components=1 
+#    rm -f ${TL_INSTALL_ARCHIVE} ${EISVOGEL_ARCHIVE}
 
 # Main stage
 FROM base AS main
