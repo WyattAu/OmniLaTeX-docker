@@ -28,7 +28,8 @@ RUN install_packages\
     python3 \
     python3-pygments \
     git \
-    default-jre-headless \
+    # cannot use `default-jre-headless`, see https://github.com/alexpovel/latex-cookbook/issues/17
+    default-jre \
     inkscape \
     gnuplot-nox \
     ghostscript \
