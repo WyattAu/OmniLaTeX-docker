@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 set -Eeuo pipefail
-trap 'echo "Error at line $LINENO. Exit code: $?" >&2' ERR
+trap 'echo "Error at line $LINENO. Exit code: ${?}" >&2' ERR
 
 readonly TL_INSTALL_ARCHIVE="install-tl-unx.tar.gz"
 readonly TEXLIVE_PREFIX="${TEXLIVE_PREFIX:-/usr/local/texlive}"
@@ -35,8 +35,8 @@ die() {
 }
 
 validate_version() {
-    [[ "$1" =~ ^[0-9]{4}$ ]] && (( $1 >= 2008 && $1 <= $(date +%Y) )) && return 0
     [[ "$1" == "latest" ]] && return 0
+    [[ "$1" =~ ^[0-9]{4}$ ]] && (( $1 >= 2008 && $1 <= $(date +%Y) )) && return 0
     return 1
 }
 
@@ -51,28 +51,53 @@ check_path() {
 
 locate_bin_dir() {
     local version="$1"
-    # Define possible locations in priority order
-    local candidates=(
+    
+    # Always look in pre-built directories first to avoid slow find
+    local -a base_prefixes=("${KNOWN_PREFIXES[@]}")
+    shopt -s nullglob
+    
+    # Predefined patterns in priority order
+    local patterns=(
         "${TEXLIVE_PREFIX}/${version}/bin"/* 
         ${HOME}/texlive/${version}/bin/*
     )
     
-    # Handle 'latest' version
-    if [[ "$version" == "latest" ]]; then
-        candidates+=($(compgen -G "${TEXLIVE_PREFIX}/2*/bin"/* | sort -Vr))
+    # Extended search locations
+    if [[ -z "$version" || "$version" == "latest" ]]; then
+        # For 'latest', get sorted list of versions
+        mapfile -t versions < <(find "${base_prefixes[@]}" -maxdepth 1 -type d -regex '.*/[0-9]{4}$' -printf "%f\n" 2>/dev/null | sort -Vr)
+        for v in "${versions[@]}"; do
+            patterns+=("${TEXLIVE_PREFIX}/${v}/bin"/*)
+        done
+    else  # Specific version
+        for prefix in "${base_prefixes[@]}"; do
+            patterns+=("${prefix}/${version}/bin"/*)
+        done
     fi
 
-    for dir in "${candidates[@]}"; do
+    # Check predefined patterns first
+    for dir in "${patterns[@]}"; do
         if [[ -d "$dir" && -x "${dir}/tex" ]]; then
-            realpath "$dir"
+            echo "$(realpath "$dir")"
+            shopt -u nullglob
             return 0
         fi
     done
 
-    # Fallback to system-wide search if not found
+    # Fallback to system-wide search if needed
     echo "Searching system-wide (this may take time)..." >&2
-    find "${KNOWN_PREFIXES[@]}" -maxdepth 4 \
-        -type d -path '*/bin/*' -exec test -x '{}/tex' \; -print -quit 2>/dev/null
+    local pattern
+    if [[ "$version" == "latest" ]]; then
+        pattern='.*/texlive/[0-9]{4}/bin/.*'
+    else
+        pattern=".*/texlive/${version}/bin/.*"
+    fi
+    
+    local found_path
+    found_path=$(find / -type d -regextype egrep -regex "$pattern" -exec test -x '{}/tex' \; -print -quit 2>/dev/null)
+    
+    shopt -u nullglob
+    [[ -d "$found_path" ]] && echo "$found_path" || return 1
 }
 
 symlink_texlive_binaries() {
@@ -87,46 +112,50 @@ symlink_texlive_binaries() {
 [[ $# -ne 2 ]] && { usage; die "Incorrect arguments"; }
 
 command="$1"
-version_arg="$2"
-validate_version "$version_arg" || die "Invalid version: $version_arg"
+version="$2"
+validate_version "$version" || die "Invalid version: $version"
 
-# Repository configuration
-if [[ "$version_arg" == "latest" ]]; then
+# Repository configuration - fixed historic URL format
+if [[ "$version" == "latest" ]]; then
     repo_url="https://mirror.ctan.org/systems/texlive/tlnet"
 else
-    repo_url="https://tug.org/texlive/historic/${version_arg}/tlnet-final"
+    repo_url="ftp://tug.org/historic/systems/texlive/${version}/tlnet-final"
 fi
 
 case "$command" in
     get_installer)
-        wget --show-progress --progress=bar:force "${repo_url}/${TL_INSTALL_ARCHIVE}"
-        echo "Downloaded: ${TL_INSTALL_ARCHIVE}"
+        wget "${repo_url}/${TL_INSTALL_ARCHIVE}"
         ;;
         
     install)
-        [[ $EUID -eq 0 ]] || die "Installation requires root privileges"
+        # Handle tarball extraction if needed
+        if [[ -f "$TL_INSTALL_ARCHIVE" && ! -f "install-tl" ]]; then
+            tar -xzf "$TL_INSTALL_ARCHIVE" --strip-components=1
+        fi
+        
         [[ -f "$TL_PROFILE" ]] || die "Profile missing: $TL_PROFILE"
         [[ -f "install-tl" ]] || die "Missing installer script"
         
+        # Ensure single quotes around profile path to handle spaces
         perl install-tl --profile="$TL_PROFILE" --repository="$repo_url"
         
         if check_path; then
             exit 0
         fi
         
-        bin_dir=$(locate_bin_dir "$version_arg")
-        [[ ! -d "$bin_dir" ]] && die "Could not locate TeX binaries"
+        bin_dir=$(locate_bin_dir "$version" 2>&1)
+        [[ -z "$bin_dir" || ! -d "$bin_dir" ]] && die "Could not locate TeX binaries"
         echo "Found binaries: ${bin_dir}"
         
         echo "Attempting to configure PATH via tlmgr..."
-        if "$bin_dir/tlmgr" path add; then
+        if "${bin_dir}/tlmgr" path add; then
             if check_path; then exit 0; fi
         else
             echo "tlmgr path command failed, trying manual symlinks"
         fi
         
         symlink_texlive_binaries "$bin_dir"
-        check_path || die "Failed to configure PATH. Manual intervention required."
+        check_path || die "TeX binaries detected at ${bin_dir}, but PATH not configured. Add to PATH or symlink manually."
         ;;
         
     *)  
