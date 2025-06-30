@@ -1,165 +1,139 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-set -Eeuo pipefail
-trap 'echo "Error at line $LINENO. Exit code: ${?}" >&2' ERR
+# Script to fetch `install-tl` script from different sources, depending on argument
+# given.
 
-readonly TL_INSTALL_ARCHIVE="install-tl-unx.tar.gz"
-readonly TEXLIVE_PREFIX="${TEXLIVE_PREFIX:-/usr/local/texlive}"
-readonly TL_PROFILE="${TL_PROFILE:-texlive.profile}"
-declare -a KNOWN_PREFIXES=(
-    "${TEXLIVE_PREFIX}"
-    "/opt/texlive"
-    "${HOME}/texlive"
-    "${HOME}/.texlive"
-)
+# For explanation of this see: https://gist.github.com/mohanpedala/1e2ff5661761d3abd0385e8223e16425?permalink_comment_id=3945021
+# set -euo pipefail
+# removed the o, causing trouble with the pipeline for the FASTEST_MIRROR
+set -euo
 
 usage() {
-    echo "Usage: $0 COMMAND VERSION"
-    echo
-    echo "Commands:"
-    echo "  get_installer  Download TexLive installer"
-    echo "  install        Install TexLive distribution"
-    echo
-    echo "Versions:"
-    echo "  latest         Use current release"
-    echo "  YYYY           Use historic release (e.g., 2023)"
-    echo
-    echo "Environment variables:"
-    echo "  TL_PROFILE     Installation profile (default: texlive.profile)"
-    echo "  TEXLIVE_PREFIX Installation root (default: /usr/local/texlive)"
+    echo "Usage: $0 get_installer|install latest|version (YYYY)"
 }
 
-die() {
-    echo -e "\033[1;31mERROR:\033[0m $*" >&2
-    exit 1
-}
-
-validate_version() {
-    [[ "$1" == "latest" ]] && return 0
-    [[ "$1" =~ ^[0-9]{4}$ ]] && (( $1 >= 2008 && $1 <= $(date +%Y) )) && return 0
-    return 1
-}
+# From: https://stackoverflow.com/a/2990533/11477374
+echoerr() { echo "$@" 1>&2; }
 
 check_path() {
-    if command -v tex >/dev/null 2>&1; then
-        tex --version | head -n1
-        echo "TeX installation verified. PATH configured correctly."
-        return 0
-    fi
-    return 1
-}
-
-locate_bin_dir() {
-    local version="$1"
-    
-    # Always look in pre-built directories first to avoid slow find
-    local -a base_prefixes=("${KNOWN_PREFIXES[@]}")
-    shopt -s nullglob
-    
-    # Predefined patterns in priority order
-    local patterns=(
-        "${TEXLIVE_PREFIX}/${version}/bin"/* 
-        ${HOME}/texlive/${version}/bin/*
-    )
-    
-    # Extended search locations
-    if [[ -z "$version" || "$version" == "latest" ]]; then
-        # For 'latest', get sorted list of versions
-        mapfile -t versions < <(find "${base_prefixes[@]}" -maxdepth 1 -type d -regex '.*/[0-9]{4}$' -printf "%f\n" 2>/dev/null | sort -Vr)
-        for v in "${versions[@]}"; do
-            patterns+=("${TEXLIVE_PREFIX}/${v}/bin"/*)
-        done
-    else  # Specific version
-        for prefix in "${base_prefixes[@]}"; do
-            patterns+=("${prefix}/${version}/bin"/*)
-        done
-    fi
-
-    # Check predefined patterns first
-    for dir in "${patterns[@]}"; do
-        if [[ -d "$dir" && -x "${dir}/tex" ]]; then
-            echo "$(realpath "$dir")"
-            shopt -u nullglob
-            return 0
-        fi
-    done
-
-    # Fallback to system-wide search if needed
-    echo "Searching system-wide (this may take time)..." >&2
-    local pattern
-    if [[ "$version" == "latest" ]]; then
-        pattern='.*/texlive/[0-9]{4}/bin/.*'
+    # The following test assumes the most basic program, `tex`, is present, see also
+    # https://www.tug.org/texlive/doc/texlive-en/texlive-en.html#x1-380003.5
+    echo "Checking PATH and installation..."
+    if tex --version
+    then
+        echo "PATH and installation seem OK, exiting with success."
+        exit 0
     else
-        pattern=".*/texlive/${version}/bin/.*"
+        echoerr "PATH or installation unhealthy, further action required..."
     fi
-    
-    local found_path
-    found_path=$(find / -type d -regextype egrep -regex "$pattern" -exec test -x '{}/tex' \; -print -quit 2>/dev/null)
-    
-    shopt -u nullglob
-    [[ -d "$found_path" ]] && echo "$found_path" || return 1
 }
 
-symlink_texlive_binaries() {
-    local bin_dir="$1" symlink_dir="/usr/local/bin"
-    [[ ":$PATH:" != *":${symlink_dir}:"* ]] && die "Target $symlink_dir not in PATH"
-    
-    echo "Creating symlinks from ${bin_dir} to ${symlink_dir}"
-    ln --symbolic --verbose --target-directory="$symlink_dir" "$bin_dir"/*
-}
-
-# Input validation
-[[ $# -ne 2 ]] && { usage; die "Incorrect arguments"; }
-
-command="$1"
-version="$2"
-validate_version "$version" || die "Invalid version: $version"
-
-# Repository configuration - fixed historic URL format
-if [[ "$version" == "latest" ]]; then
-    repo_url="https://mirror.ctan.org/systems/texlive/tlnet"
-else
-    repo_url="ftp://tug.org/historic/systems/texlive/${version}/tlnet-final"
+if [[ $# != 2 ]]; then
+    echoerr "Unsuitable number of arguments given."
+    echoerr "Got arguments: $*"
+    usage
+    # From /usr/include/sysexits.h
+    exit 64
 fi
 
-case "$command" in
-    get_installer)
-        wget "${repo_url}/${TL_INSTALL_ARCHIVE}"
-        ;;
-        
-    install)
-        # Handle tarball extraction if needed
-        if [[ -f "$TL_INSTALL_ARCHIVE" && ! -f "install-tl" ]]; then
-            tar -xzf "$TL_INSTALL_ARCHIVE" --strip-components=1
-        fi
-        
-        [[ -f "$TL_PROFILE" ]] || die "Profile missing: $TL_PROFILE"
-        [[ -f "install-tl" ]] || die "Missing installer script"
-        
-        # Ensure single quotes around profile path to handle spaces
-        perl install-tl --profile="$TL_PROFILE" --repository="$repo_url"
-        
-        if check_path; then
-            exit 0
-        fi
-        
-        bin_dir=$(locate_bin_dir "$version" 2>&1)
-        [[ -z "$bin_dir" || ! -d "$bin_dir" ]] && die "Could not locate TeX binaries"
-        echo "Found binaries: ${bin_dir}"
-        
-        echo "Attempting to configure PATH via tlmgr..."
-        if "${bin_dir}/tlmgr" path add; then
-            if check_path; then exit 0; fi
+# Bind CLI arguments to explicit names:
+ACTION=${1}
+VERSION=${2}
+
+# Download the `install-tl` script from the `tlnet-final` subdirectory, NOT
+# from the parent directory. The latter contains an outdated, non-final `install-tl`
+# script, causing this exact problem:
+# https://tug.org/pipermail/tex-live/2017-June/040376.html
+HISTORIC_URL="ftp://tug.org/historic/systems/texlive/${VERSION}/tlnet-final"
+REGULAR_URL="http://mirror.ctan.org/systems/texlive/tlnet"
+
+case ${ACTION} in
+    "get_installer")
+        if [[ ${VERSION} == "latest" ]]
+        then
+            # Get from default, current repository
+            GET_URL="${REGULAR_URL}/${TL_INSTALL_ARCHIVE}"
         else
-            echo "tlmgr path command failed, trying manual symlinks"
+            # Get from historic repository
+            GET_URL="${HISTORIC_URL}/${TL_INSTALL_ARCHIVE}"
         fi
-        
-        symlink_texlive_binaries "$bin_dir"
-        check_path || die "TeX binaries detected at ${bin_dir}, but PATH not configured. Add to PATH or symlink manually."
-        ;;
-        
-    *)  
+        wget "$GET_URL"
+    ;;
+    "install")
+        if [[ ${VERSION} == "latest" ]]
+        then
+            # Install using default, current repository.
+            # Install process/script documentation is here:
+            # https://www.tug.org/texlive/doc/texlive-en/texlive-en.html
+            perl install-tl \
+                --profile="$TL_PROFILE" \
+                --location https://ftp.rrzn.uni-hannover.de/pub/mirror/tex-archive/systems/texlive/tlnet/
+
+        else
+            # Install using historic repository (`install-tl` script and repository
+            # versions need to match)
+            perl install-tl \
+                --profile="$TL_PROFILE" \
+                --location https://ftp.rrzn.uni-hannover.de/pub/mirror/tex-archive/systems/texlive/tlnet/ \
+                --repository="$HISTORIC_URL"
+        fi
+
+        # If automatic `install-tl` process has already adjusted PATH, we are happy.
+        check_path
+        echo "install-tl procedure did not adjust PATH automatically, trying other options..."
+
+        # `\d` class doesn't exist for basic `grep`, use `0-9`, which is much more
+        # portable. Finding the initial dir is very fast, but looking through everything
+        # else afterwards might take a while. Therefore, print and quit after first result.
+        # Path example: `/usr/local/texlive/2018/bin/x86_64-linux`
+        TEXLIVE_BIN_DIR=$(find / -type d -regextype grep -regex '.*/texlive/[0-9]\{4\}/bin/.*' -print -quit)
+
+        # -z test: string zero length?
+        if [ -z "$TEXLIVE_BIN_DIR" ]
+        then
+            echoerr "Expected TeXLive installation dir not found and TeXLive installation did not modify PATH automatically."
+            echoerr "Exiting."
+            exit 1
+        fi
+
+        echo "Found TeXLive binaries at $TEXLIVE_BIN_DIR"
+        echo "Trying native TeXLive symlinking using tlmgr..."
+
+        # To my amazement, `tlmgr path add` can fail but still link successfully. So
+        # check if PATH is OK despite that command failing.
+        "$TEXLIVE_BIN_DIR"/tlmgr path add || \
+            echoerr "Command borked, checking if it worked regardless..."
+        check_path
+        echoerr "Symlinking using tlmgr did not succeed, trying manual linking..."
+
+        SYMLINK_DESTINATION="/usr/local/bin"
+
+        # "String contains", see: https://stackoverflow.com/a/229606/11477374
+        if [[ ! ${PATH} == *${SYMLINK_DESTINATION}* ]]
+        then
+            # Should never get here, but make sure.
+            echoerr "Symlink destination ${SYMLINK_DESTINATION} not in PATH (${PATH}), exiting."
+            exit 1
+        fi
+
+        echo "Symlinking TeXLive binaries in ${TEXLIVE_BIN_DIR}"
+        echo "to a directory (${SYMLINK_DESTINATION}) found on PATH (${PATH})"
+
+        # Notice the slash and wildcard.
+        ln \
+            --symbolic \
+            --verbose \
+            --target-directory="$SYMLINK_DESTINATION" \
+            "$TEXLIVE_BIN_DIR"/*
+
+        check_path
+
+        echoerr "All attempts failed, exiting."
+        exit 1
+    ;;
+    *)
+        echoerr "Input not understood."
         usage
-        die "Invalid command: $command"
-        ;;
+        # From /usr/include/sysexits.h
+        exit 64
 esac
