@@ -1,6 +1,6 @@
 # ==================== Global Build Arguments ====================
 ARG BASE_OS="debian"
-ARG OS_VERSION="testing"
+ARG OS_VERSION="bookworm"
 ARG TL_VERSION="latest"
 ARG _BUILD_CONTEXT_PREFIX=""
 
@@ -8,20 +8,20 @@ ARG _BUILD_CONTEXT_PREFIX=""
 FROM ${BASE_OS}:${OS_VERSION} AS base
 
 # Set default locale and encoding
-ENV LANG=en_US.UTF-8
-ENV LC_ALL=en_US.UTF-8
+ENV DEBIAN_FRONTEND=noninteractive 
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
     # Core utilities
-    locales \
-    wget \
-    curl \
     ca-certificates \
-    perl \
-    make \
+    curl \
     git \
     gettext-base \
+    locales \
+    make \
+    perl \
+    wget \
     \
     # LaTeX tools dependencies
     python3 \
@@ -34,21 +34,34 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     \
     # Graphical tools
     default-jre \
-    inkscape \
-    gnuplot-nox \
     ghostscript \
+    gnuplot-nox \
+    inkscape \
     poppler-utils \
     \
     # Pandoc and related
+    cabextract \
     librsvg2-bin \
     pandoc \
-    cabextract && \
-    # Cleanup
-    rm -rf /var/lib/apt/lists/* && \
+    && \
+    rm -f /usr/lib/locale/locale-archive && \
+    # Configure locales
+    echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && \
+    echo "en_US ISO-8859-1" >> /etc/locale.gen && \
+    # Generate locales
+    locale-gen en_US.UTF-8 && \
+    dpkg-reconfigure --frontend=noninteractive locales && \
+    update-locale LANG=${LANG} && \
     # Set Python3 as default
     update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
-    # Generate locales
-    echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && locale-gen
+    # Cleanup
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV LANG=en_US.UTF-8 \
+    LANGUAGE=en_US:en \
+    LC_ALL=en_US.UTF-8
+
 
 # ==================== Downloads Stage ====================
 FROM base AS downloads
@@ -80,7 +93,7 @@ ARG TL_PROFILE="texlive.profile"
 ARG INSTALL_DIR="/install"
 
 # Create non-root user
-RUN useradd --create-home ${USER}
+RUN useradd --create-home --shell /bin/bash ${USER}
 
 # Configure image metadata
 LABEL maintainer="Wyatt Au <wyatt_au@protonmail.com>" \
@@ -98,7 +111,7 @@ COPY --from=downloads /eisvogel.latex /home/${USER}/.pandoc/templates/
 COPY ${_BUILD_CONTEXT_PREFIX}/config/.wgetrc /etc/wgetrc
 
 # Install TeXLive
-RUN ./texlive.sh install "$TL_VERSION" && \
+RUN ./texlive.sh install "${TL_VERSION}" && \
     # Cleanup installation
     rm -rf ${INSTALL_DIR} && \
     # Install LaTeX template
@@ -106,10 +119,14 @@ RUN ./texlive.sh install "$TL_VERSION" && \
     wget -q -P /home/${USER}/texmf/tex/latex/ \
       https://collaborating.tuhh.de/m21/public/theses/itt-latex-template/-/raw/master/acp.cls && \
     # Update font cache
-    luaotfload-tool --update || true
+    luaotfload-tool --update || true && \
+    # Final cleanup
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/*
 
 # Set ownership and switch to user
 RUN chown -R ${USER}:${USER} /home/${USER}
+
 WORKDIR /workdir
 USER ${USER}
 

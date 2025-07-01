@@ -10,10 +10,11 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  CACHE_SCOPE: global-cache  # Shared cache across all branches
+  CACHE_SCOPE: global-cache
+  PLATFORMS: linux/amd64,linux/arm64
 
 jobs:
-  build-scan-push:
+  build-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -24,20 +25,30 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Configure Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
+          driver: docker-container
           driver-opts: |
-            image=moby/buildkit:latest
+            image=moby/buildkit:master
+            network=host
+          install: true
+          buildkitd-config-inline: |
+            [worker.oci]
+              max-parallelism = 4
 
-      - name: Authenticate with GitHub Container Registry
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        if: env.PLATFORMS != 'linux/amd64'
+
+      - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate Image Metadata
+      - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v4
         with:
@@ -47,22 +58,24 @@ jobs:
             type=ref,event=tag
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha
 
-      - name: Build, Scan and Push Image
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          sbom: true
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ env.PLATFORMS }}
+          sbom: ${{ github.event_name != 'pull_request' }}
+          provenance: ${{ github.event_name != 'pull_request' }}
           cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
           cache-to: type=gha,scope=${{ env.CACHE_SCOPE }},mode=max
+          builder: ${{ steps.buildx.outputs.name }}
 
-      - name: Verify Public Package
-        if: ${{ github.event_name != 'pull_request' }}
+      - name: Inspect build cache
+        if: always()
         run: |
-          echo "Public package URL: https://ghcr.io/${{ env.IMAGE_NAME }}"
-          echo "Verify visibility: https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility"
+          docker buildx du
+          docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
