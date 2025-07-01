@@ -93,7 +93,7 @@ ARG TL_PROFILE="texlive.profile"
 ARG INSTALL_DIR="/install"
 
 # Create non-root user
-RUN useradd --create-home --shell /bin/bash ${USER}
+RUN useradd --create-home ${USER}
 
 # Configure image metadata
 LABEL maintainer="Wyatt Au <wyatt_au@protonmail.com>" \
@@ -111,23 +111,29 @@ COPY --from=downloads /eisvogel.latex /home/${USER}/.pandoc/templates/
 COPY ${_BUILD_CONTEXT_PREFIX}/config/.wgetrc /etc/wgetrc
 
 # Install TeXLive
-RUN ./texlive.sh install "${TL_VERSION}" && \
+RUN ./texlive.sh install "${TL_VERSION}" 
+
+# Set ownership and switch to user
+
+WORKDIR /workdir
+USER ${USER}
+
+# Update font cache
+RUN luaotfload-tool --update || true 
+
+USER root
+RUN chown -R ${USER}:${USER} /home/${USER}
+
     # Cleanup installation
-    rm -rf ${INSTALL_DIR} && \
+RUN rm -rf ${INSTALL_DIR} && \
     # Install LaTeX template
     mkdir -p /home/${USER}/texmf/tex/latex/ && \
     wget -q -P /home/${USER}/texmf/tex/latex/ \
       https://collaborating.tuhh.de/m21/public/theses/itt-latex-template/-/raw/master/acp.cls && \
-    # Update font cache
-    luaotfload-tool --update || true && \
     # Final cleanup
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
-# Set ownership and switch to user
-RUN chown -R ${USER}:${USER} /home/${USER}
-
-WORKDIR /workdir
 USER ${USER}
 
 # Configure entrypoint
