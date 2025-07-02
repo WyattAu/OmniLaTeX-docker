@@ -1,141 +1,172 @@
-# ==================== Global Build Arguments ====================
+# syntax=docker/dockerfile:1.4
+
 ARG BASE_OS="debian"
 ARG OS_VERSION="bookworm"
 ARG TL_VERSION="latest"
 ARG _BUILD_CONTEXT_PREFIX=""
 
-# ==================== Base Image Stage ====================
+#---------------------------------------------
+# Base image with common dependencies
+#---------------------------------------------
 FROM ${BASE_OS}:${OS_VERSION} AS base
 
-# Set default locale and encoding
-ENV DEBIAN_FRONTEND=noninteractive 
+# Renew ARGs after FROM
+ARG BASE_OS
+ARG OS_VERSION
 
-# Install system dependencies
-RUN apt-get update -qq && \
-    apt-get install -y --no-install-recommends \
-    # Core utilities
+# Install system dependencies grouped by functionality
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && \
+    apt-get install --yes --no-install-recommends \
+    # Core system utilities
     ca-certificates \
-    curl \
-    git \
-    gettext-base \
     locales \
-    make \
-    perl \
     wget \
+    curl \
+    perl \
     \
-    # LaTeX tools dependencies
-    python3 \
-    python3-pygments \
+    # TeXLive dependencies
     libyaml-tiny-perl \
     libfile-homedir-perl \
     libunicode-linebreak-perl \
     liblog-log4perl-perl \
     liblog-dispatch-perl \
     \
-    # Graphical tools
-    default-jre \
-    ghostscript \
-    gnuplot-nox \
+    # Build tools
+    make \
+    git \
+    gettext-base \
+    \
+    # Python ecosystem
+    python3 \
+    python3-pygments \
+    \
+    # Graphics and plotting
     inkscape \
+    gnuplot-nox \
+    ghostscript \
     poppler-utils \
     \
-    # Pandoc and related
-    cabextract \
+    # Document conversion
     librsvg2-bin \
     pandoc \
-    && \
-    rm -f /usr/lib/locale/locale-archive && \
-    # Configure locales
-    echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && \
-    echo "en_US ISO-8859-1" >> /etc/locale.gen && \
-    # Generate locales
-    locale-gen en_US.UTF-8 && \
-    dpkg-reconfigure --frontend=noninteractive locales && \
-    update-locale LANG=${LANG} && \
-    # Set Python3 as default
-    update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
-    # Cleanup
-    apt-get clean && \
+    cabextract \
+    \
+    # JRE for auxiliary tools
+    default-jre && \
     rm -rf /var/lib/apt/lists/*
 
-ENV LANG=en_US.UTF-8 \
-    LANGUAGE=en_US:en \
-    LC_ALL=en_US.UTF-8
+# Configure Python alternatives safely
+RUN if ! command -v python >/dev/null 2>&1; then \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3 1; \
+    fi
 
+# Set system-wide locale and encoding
+ENV LANG=C.utf8 LC_ALL=C.utf8
 
-# ==================== Downloads Stage ====================
+#---------------------------------------------
+# Download stage - separate layer for better caching
+#---------------------------------------------
 FROM base AS downloads
 
+# Renew ARGs
 ARG TL_VERSION
 ARG _BUILD_CONTEXT_PREFIX
+
 ARG TL_INSTALL_ARCHIVE="install-tl-unx.tar.gz"
 ARG EISVOGEL_ARCHIVE="Eisvogel.tar.gz"
 ARG INSTALL_TL_DIR="install-tl"
 
-# Copy and prepare installation scripts
-COPY ./${_BUILD_CONTEXT_PREFIX}/texlive.sh .
-RUN chmod +x texlive.sh && \
-    ./texlive.sh get_installer ${TL_VERSION} && \
-    wget -q https://github.com/Wandmalfarbe/pandoc-latex-template/releases/latest/download/${EISVOGEL_ARCHIVE}
+WORKDIR /downloads
 
-# Extract archives
-RUN mkdir ${INSTALL_TL_DIR} && \
-    tar -xf ${TL_INSTALL_ARCHIVE} -C ${INSTALL_TL_DIR} --strip-components 1 && \
-    tar -xf ${EISVOGEL_ARCHIVE} --strip-components=1
+# Copy and prepare installation script
+COPY --chmod=755 ./${_BUILD_CONTEXT_PREFIX}/texlive.sh .
 
-# ==================== Final Image Stage ====================
+RUN ./texlive.sh get_installer "${TL_VERSION}" && \
+    # Verify installer download
+    if [ ! -f "${TL_INSTALL_ARCHIVE}" ]; then \
+    echo "Error: Failed to download TeXLive installer" >&2; \
+    exit 1; \
+    fi && \
+    # Download Eisvogel template
+    wget --progress=dot:giga \
+    https://github.com/Wandmalfarbe/pandoc-latex-template/releases/latest/download/${EISVOGEL_ARCHIVE}
+
+
+RUN \
+    mkdir -p "${INSTALL_TL_DIR}" && \
+    tar --extract --file="${TL_INSTALL_ARCHIVE}" --directory="${INSTALL_TL_DIR}" --strip-components 1 || { \
+    echo "Error: Failed to extract TeXLive installer" >&2; \
+    exit 1; \
+    } && \
+    tar --extract --file="${EISVOGEL_ARCHIVE}" --strip-components=1 || { \
+    echo "Error: Failed to extract Eisvogel template" >&2; \
+    exit 1; \
+    }
+
+#---------------------------------------------
+# Main build stage
+#---------------------------------------------
 FROM base AS main
 
+# Renew ARGs
 ARG TL_VERSION
 ARG _BUILD_CONTEXT_PREFIX
 ARG USER="tex"
 ARG TL_PROFILE="texlive.profile"
+ARG TMP_TL_PROFILE="${TL_PROFILE}.tmp"
 ARG INSTALL_DIR="/install"
 
-# Create non-root user
-RUN useradd --create-home ${USER}
+# Create unprivileged user 
+RUN useradd --create-home --shell /bin/bash ${USER}
 
-# Configure image metadata
+# Add metadata labels (OCI-compliant)
 LABEL maintainer="Wyatt Au <wyatt_au@protonmail.com>" \
-      org.label-schema.description="OmniLaTeX required tooling" \
-      org.label-schema.vcs-url="https://github.com/WyattAu/OmniLaTeX-docker" \
-      org.label-schema.schema-version="0.0.1"
-
+    org.opencontainers.image.title="OmniLatex-docker" \
+    org.opencontainers.image.description="OmniLaTeX required tooling" \
+    org.opencontainers.image.url="ghcr.io/wyattau/omnilatex-docker:latest" \
+    org.opencontainers.image.source="https://github.com/WyattAu/OmniLaTeX-docker.git" \
+    org.opencontainers.image.version="${TL_VERSION}" 
+#org.opencontainers.image.created="${BUILD_DATE}" 
 
 WORKDIR ${INSTALL_DIR}
 
-# Copy installation files
-COPY ${_BUILD_CONTEXT_PREFIX}/config/${TL_PROFILE} .
-COPY --from=downloads /install-tl/ /texlive.sh ./
-COPY --from=downloads /eisvogel.latex /home/${USER}/.pandoc/templates/
+# Copy installation artifacts
+COPY --from=downloads /downloads/install-tl/ /downloads/texlive.sh ./
+COPY --from=downloads /downloads/eisvogel.latex /home/${USER}/.pandoc/templates/
+
+# Copy configuration files
+COPY ${_BUILD_CONTEXT_PREFIX}/config/${TL_PROFILE} ${TMP_TL_PROFILE}
 COPY ${_BUILD_CONTEXT_PREFIX}/config/.wgetrc /etc/wgetrc
 
-# Install TeXLive
-RUN ./texlive.sh install "${TL_VERSION}" 
+# Process configuration template
+RUN cat "${TMP_TL_PROFILE}" | envsubst | tee "${TL_PROFILE}" && \
+    rm "${TMP_TL_PROFILE}"
 
-# Set ownership and switch to user
+# Install TeXLive (large layer)
+RUN ./texlive.sh install "${TL_VERSION}"
 
-WORKDIR /workdir
+# Post-installation setup
+WORKDIR /home/${USER}
+
+# Install custom class file
+RUN mkdir -p texmf/tex/latex/ && \
+    wget --quiet -P texmf/tex/latex/ \
+    https://collaborating.tuhh.de/m21/public/theses/itt-latex-template/-/raw/master/acp.cls
+
+# Update font cache as user
 USER ${USER}
+RUN luaotfload-tool --update --quiet || echo "Font cache update skipped"
 
-# Update font cache
-RUN luaotfload-tool --update || true 
-
+# Final permissions and cleanup
 USER root
-RUN chown -R ${USER}:${USER} /home/${USER}
+RUN chown --recursive ${USER}:${USER} /home/${USER} && \
+    find /home/${USER} -type d -exec chmod 755 {} \; && \
+    find /home/${USER} -type f -exec chmod 644 {} \;
 
-    # Cleanup installation
-RUN rm -rf ${INSTALL_DIR} && \
-    # Install LaTeX template
-    mkdir -p /home/${USER}/texmf/tex/latex/ && \
-    wget -q -P /home/${USER}/texmf/tex/latex/ \
-      https://collaborating.tuhh.de/m21/public/theses/itt-latex-template/-/raw/master/acp.cls && \
-    # Final cleanup
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/*
-
+# Default container configuration
 USER ${USER}
+WORKDIR /workspace
 
-# Configure entrypoint
-ENTRYPOINT [ "latexmk" ]
-CMD [ "--lualatex" ]
+ENTRYPOINT ["latexmk"]
+CMD ["--lualatex"]
