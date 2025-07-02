@@ -14,9 +14,8 @@ FROM ${BASE_OS}:${OS_VERSION} AS base
 ARG BASE_OS
 ARG OS_VERSION
 
-# Install system dependencies grouped by functionality
-RUN --mount=type=cache,target=/var/cache/apt \
-    apt-get update && \
+# Install system dependencies 
+RUN apt-get update -qq && \
     apt-get install --yes --no-install-recommends \
     # Core system utilities
     ca-certificates \
