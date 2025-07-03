@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.4
-ARG BASE_OS="debian"
+ARG BASE_OS="bitnami/minideb"
 
 # Tag of the base OS image
 ARG OS_VERSION="bookworm"
@@ -16,11 +16,7 @@ ARG _BUILD_CONTEXT_PREFIX=""
 # Image with layers as used by all succeeding steps
 FROM ${BASE_OS}:${OS_VERSION} AS base
 
-# Use `apt-get` over just `apt`, see https://askubuntu.com/a/990838/978477.
-# Also run `apt-get update` on every `RUN`, see:
-# https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#run
-RUN apt-get update && \
-    apt-get install --yes --no-install-recommends \
+RUN install_packages --no-install-recommends \
     # locales to be able to set the locale, for setting encoding to UTF-8
     locales \
     # wget for `install-tl` script to download TeXLive, and other downloads.
