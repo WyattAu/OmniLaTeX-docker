@@ -3,7 +3,7 @@ name: Docker Image CI/CD
 on:
   push:
     branches: [main]
-    tags: [v*]
+    tags: [v*.*.*]
   pull_request:
     branches: [main]
 
@@ -29,7 +29,14 @@ jobs:
         run: |
           # Convert repository name to lowercase and set as environment variable
           echo "IMAGE_NAME=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
+      
+      - name: Generate branch tag
+        if: ${{ github.event_name == 'push' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}
+        id: branch-tag
+        run: |
+          branch=${GITHUB_REF#refs/heads/}
+          sanitized_branch=$(echo "$branch" | tr '/[:upper:]' '-[:lower:]' | sed -E 's/[^a-z0-9-_.]/-/g')
+          echo "tag=$sanitized_branch" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -65,13 +72,24 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
 
+      
+      - name: Combine tags
+        id: combined-tags
+        run: |
+          BRANCH_TAG="${{ steps.branch-tag.outputs.tag || '' }}"
+          if [ -n "$BRANCH_TAG" ]; then
+              echo "final-tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$BRANCH_TAG" >> $GITHUB_OUTPUT
+          else
+              echo "final-tags=${{ steps.meta.outputs.tags }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.combined-tags.outputs.final-tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ env.PLATFORMS }}
           sbom: ${{ github.event_name != 'pull_request' }}
