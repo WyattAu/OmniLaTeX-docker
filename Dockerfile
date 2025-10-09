@@ -104,7 +104,7 @@ RUN install_packages --no-install-recommends \
 
 # Install Python dependencies for the build script.
 # Use --no-cache-dir to reduce layer size. PyYAML is needed by build.py.
-RUN pip install --no-cache-dir pyyaml
+RUN pip3 install --no-cache-dir pyyaml
 
 # The `minted` LaTeX package provides syntax highlighting using the Python `pygmentize`
 # package. That package also installs a callable script, which `minted` uses, see
