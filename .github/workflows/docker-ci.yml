@@ -23,7 +23,7 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-      
+
       - name: Set lowercase Image name
         id: set-image-name
         run: |

@@ -74,6 +74,7 @@ RUN install_packages --no-install-recommends \
     python3 \
     python3-pygments \
     python3-pip \
+    python3-yaml \
     # Required to embed git metadata into PDF from within Docker container:
     git \
     #-----------------Graphical and auxiliary tools-----------------
@@ -101,10 +102,6 @@ RUN install_packages --no-install-recommends \
     # Cleaning up the apt cache by removing /var/lib/apt/lists reduces the image size
     # See: https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#apt-get
     rm -rf /var/lib/apt/lists/*
-
-# Install Python dependencies for the build script.
-# Use --no-cache-dir to reduce layer size. PyYAML is needed by build.py.
-RUN pip3 install --no-cache-dir pyyaml
 
 # The `minted` LaTeX package provides syntax highlighting using the Python `pygmentize`
 # package. That package also installs a callable script, which `minted` uses, see
@@ -137,6 +134,7 @@ FROM base AS downloads
 # https://github.com/moby/moby/issues/37345.
 # Therefore, work in root (no so `WORKDIR`), so in later stages, the location of
 # files copied from this stage does not have to be guessed/WET.
+WORKDIR /
 
 # Using an ARG with 'TEX' in the name, TeXLive will warn:
 #
@@ -170,8 +168,8 @@ RUN \
     ./texlive.sh get_installer ${TL_VERSION} && \
     # Get Eisvogel LaTeX template for pandoc,
     # see also #175 in that repo.
-    wget https://github.com/Wandmalfarbe/pandoc-latex-template/releases/latest/download/${EISVOGEL_ARCHIVE}
-    
+    wget -q https://github.com/Wandmalfarbe/pandoc-latex-template/releases/latest/download/${EISVOGEL_ARCHIVE}
+
 RUN \
     mkdir ${INSTALL_TL_DIR} && \
     # Save archive to predictable directory, in case its name ever changes; see
@@ -208,6 +206,7 @@ ARG USER="tex"
 
 RUN useradd --create-home ${USER}
 
+
 # Label according to http://label-schema.org/rc1/ to have some metadata in the image.
 # This is important e.g. to know *when* an image was built. Depending on that, it can
 # contain different software versions (even if the base image is specified as a fixed
@@ -217,13 +216,14 @@ LABEL maintainer="Wyatt Au <wyatt_au@protonmail.com>" \
     org.opencontainers.image.description="OmniLaTeX required tooling" \
     org.opencontainers.image.url="ghcr.io/wyattau/omnilatex-docker:latest" \
     org.opencontainers.image.source="https://github.com/WyattAu/OmniLaTeX-docker.git" \
-    org.opencontainers.image.version="${TL_VERSION}" 
+    org.opencontainers.image.version="${TL_VERSION}"
 
 # Install Poetry for Python dependency management in tests.
 # Pinning the version is a best practice for reproducible builds.
 # Installing to /opt/poetry makes it available system-wide in a clean location.
 ENV POETRY_VERSION=2.2.1
 ENV POETRY_HOME=/opt/poetry
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN curl -sSL https://install.python-poetry.org | python3 -
 # Add Poetry to the PATH for all users.
 ENV PATH="${POETRY_HOME}/bin:${PATH}"
@@ -245,7 +245,7 @@ COPY ${_BUILD_CONTEXT_PREFIX}/config/.wgetrc /etc/wgetrc
 # "In-place" `envsubst` run is a bit more involved, see also:
 # https://stackoverflow.com/q/35078753/11477374.
 # Do not use `mktemp`, will break Docker caching since it's a new file each time.
-RUN cat "$TMP_TL_PROFILE" | envsubst | tee "$TL_PROFILE" && \
+RUN envsubst < "$TMP_TL_PROFILE" > "$TL_PROFILE" && \
     rm "$TMP_TL_PROFILE"
 
 # (Large) LaTeX layer
@@ -269,11 +269,11 @@ RUN luaotfload-tool --update || echo "luaotfload-tool did not succeed, skipping.
 
 USER root
 # Give back control to own user files; might be root-owned from previous copying processes
-RUN chown --recursive ${USER}:${USER} /home/${USER}/
 # Make our class file available for the entire latex/TeXLive installation, see also
 # https://tex.stackexchange.com/a/1138/120853
 # Download the acp.cls from the ITT LaTeX template to the right destination
-RUN wget -P /home/${USER}/texmf/tex/latex/ https://collaborating.tuhh.de/m21/public/theses/itt-latex-template/-/raw/master/acp.cls
+RUN chown --recursive ${USER}:${USER} /home/${USER}/ && \
+    wget -q -P /home/${USER}/texmf/tex/latex/ https://collaborating.tuhh.de/m21/public/theses/itt-latex-template/-/raw/master/acp.cls
 USER ${USER}
 
 # The default parameters to the entrypoint; overridden if any arguments are given to
