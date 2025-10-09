@@ -54,7 +54,7 @@ collection-latexrecommended 1
 collection-luatex 1
 
 
-# Tooling 
+# Tooling
 collection-pictures 1
 collection-plaingeneric 1
 collection-publishers 1

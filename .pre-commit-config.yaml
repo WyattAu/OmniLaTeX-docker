@@ -1,0 +1,36 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        description: "Trims trailing whitespace."
+
+      - id: end-of-file-fixer
+        description: "Ensures files end with a single newline."
+
+      - id: check-yaml
+        description: "Checks YAML file syntax."
+
+      - id: check-merge-conflict
+        description: "Checks for unresolved merge conflicts."
+
+      - id: check-case-conflict
+        description: "Checks for file path case conflicts."
+
+
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        name: Lint Dockerfiles
+        description: "Runs hadolint Docker image to lint Dockerfiles"
+        language: docker_image
+        entry: hadolint/hadolint:v2.12.0 hadolint
+        args: ['--ignore=DL4001']
+
+
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.11.0
+    hooks:
+      - id: shellcheck
+        description: "Lints shell scripts for bugs and anti-patterns."
