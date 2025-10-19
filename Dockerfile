@@ -318,9 +318,9 @@ USER root
 # Make our class file available for the entire latex/TeXLive installation, see also
 # https://tex.stackexchange.com/a/1138/120853
 # Download the acp.cls from the ITT LaTeX template to the right destination
-RUN chown --recursive ${USER}:${USER} /home/${USER}/ && \
-    mkdir -p /home/${USER}/texmf/tex/latex && \
+RUN mkdir -p /home/${USER}/texmf/tex/latex && \
     wget -qO /home/${USER}/texmf/tex/latex/omnilatex.cls https://raw.githubusercontent.com/WyattAu/OmniLaTeX-template/main/omnilatex.cls && \
+    chown --recursive ${USER}:${USER} /home/${USER}/ && \
     /usr/local/bin/verify_checksum.sh "/home/${USER}/texmf/tex/latex/omnilatex.cls" "${OMNILATEX_CLS_SHA256}"
 USER ${USER}
 
