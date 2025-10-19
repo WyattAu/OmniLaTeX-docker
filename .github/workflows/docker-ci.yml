@@ -75,6 +75,14 @@ jobs:
           cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
           cache-to: type=gha,scope=${{ env.CACHE_SCOPE }},mode=max
           builder: ${{ steps.buildx.outputs.name }}
+          build-args: |
+            USER=tex
+            USER_ID=1000
+            GROUP_ID=1000
+            TL_CACHE_BUSTER=${{ github.run_id }}
+            TL_INSTALL_SHA256=${{ secrets.TL_INSTALL_SHA256 }}
+            EISVOGEL_SHA256=${{ secrets.EISVOGEL_SHA256 }}
+            OMNILATEX_CLS_SHA256=${{ secrets.OMNILATEX_CLS_SHA256 }}
 
       - name: Inspect build cache
         if: always()
