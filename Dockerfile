@@ -23,13 +23,13 @@ ARG _BUILD_CONTEXT_PREFIX=""
 
 # Image with layers as used by all succeeding steps
 FROM ${BASE_OS}:${OS_VERSION} AS base
+ARG TARGETARCH
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # hadolint ignore=DL3008
-# hadolint ignore=DL3008
-RUN --mount=type=cache,target=/var/lib/apt/lists \
-    --mount=type=cache,target=/var/cache/apt \
+RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=locked \
+    rm -f /var/lib/apt/lists/lock && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
     # locales to be able to set the locale, for setting encoding to UTF-8
@@ -99,8 +99,8 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     rm -rf /var/lib/apt/lists/*
 
 # hadolint ignore=DL3008
-RUN --mount=type=cache,target=/var/lib/apt/lists \
-    --mount=type=cache,target=/var/cache/apt \
+RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=locked \
+    rm -f /var/lib/apt/lists/lock && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
     #-----------------Graphical and auxiliary tools-----------------
