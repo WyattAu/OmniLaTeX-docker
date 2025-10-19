@@ -272,6 +272,7 @@ WORKDIR ${INSTALL_DIR}
 COPY ${_BUILD_CONTEXT_PREFIX}/config/${TL_PROFILE} ${TMP_TL_PROFILE}
 COPY --from=downloads /install-tl/ ./install-tl/
 COPY --from=downloads /usr/local/bin/texlive.py /usr/local/bin/texlive.py
+COPY --from=downloads /usr/local/bin/verify_checksum.sh /usr/local/bin/verify_checksum.sh
 COPY ${_BUILD_CONTEXT_PREFIX}/scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 # Move to where pandoc looks for templates, see https://pandoc.org/MANUAL.html#option--data-dir
