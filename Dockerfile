@@ -257,10 +257,13 @@ LABEL maintainer="Wyatt Au <wyatt_au@protonmail.com>" \
 
 # Install Poetry for Python dependency management in tests.
 # Pinning the version is a best practice for reproducible builds.
-# Installing to /opt/poetry makes it available system-wide in a clean location.
 ENV POETRY_VERSION=2.2.1
+ENV POETRY_HOME=/opt/poetry
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN python3 -m pip install --no-cache-dir "poetry==${POETRY_VERSION}"
+RUN python3 -m venv "${POETRY_HOME}" && \
+    "${POETRY_HOME}/bin/pip" install --no-cache-dir "poetry==${POETRY_VERSION}" && \
+    ln -s "${POETRY_HOME}/bin/poetry" /usr/local/bin/poetry
+ENV PATH="${POETRY_HOME}/bin:${PATH}"
 
 ARG INSTALL_DIR="/install"
 WORKDIR ${INSTALL_DIR}
