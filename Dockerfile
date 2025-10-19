@@ -4,12 +4,15 @@ ARG BASE_OS="bitnami/minideb"
 # Tag of the base OS image
 ARG OS_VERSION="bookworm"
 
-# TeXLive version. This will be used by the `texlive.sh` script to determine what to
+# TeXLive version. This will be used by the installer helper to determine what to
 # download and install. `latest` will fetch the latest version available on their servers.
 # Alternatively, you can specify *a past year* and it will download that version
 # from the TeXLive archives and use it (can take a long time).
 # For available years, see ftp://tug.org/historic/systems/texlive/ .
 ARG TL_VERSION="latest"
+ARG TL_MIRROR="https://mirror.ctan.org/systems/texlive/tlnet"
+ARG TL_ARCHIVE_MIRROR="ftp://tug.org/historic/systems/texlive"
+ARG TL_CACHE_BUSTER="0"
 
 ARG _BUILD_CONTEXT_PREFIX=""
 
@@ -143,29 +146,27 @@ WORKDIR /
 #  (case-independent).  If you're doing anything but adding personal
 #  directories to the system paths, they may well cause trouble somewhere
 #  while running TeX. If you encounter problems, try unsetting them.
-#  Please ignore spurious matches unrelated to TeX.
-
-#     TEXPROFILE_FILE=texlive.profile
-#  ----------------------------------------------------------------------
-#
-# This also happens when the *value* contains 'TEX'.
-# `ARG`s are only set during Docker image build-time, so this warning should be void.
-
 # Renew (https://stackoverflow.com/a/53682110):
 ARG TL_VERSION
 ARG _BUILD_CONTEXT_PREFIX
+ARG TL_MIRROR
+ARG TL_ARCHIVE_MIRROR
+ARG TL_CACHE_BUSTER
 
 ARG TL_INSTALL_ARCHIVE="install-tl-unx.tar.gz"
 ARG EISVOGEL_ARCHIVE="Eisvogel.tar.gz"
 ARG INSTALL_TL_DIR="install-tl"
 
-COPY ./${_BUILD_CONTEXT_PREFIX}/texlive.sh .
+COPY ${_BUILD_CONTEXT_PREFIX}/scripts/texlive.py /usr/local/bin/texlive.py
 
 RUN \
-    # Make texlive.sh executable: https://www.shells.com/l/en-US/tutorial/How-to-Fix-Shell-Script-Permission-Denied-Error-in-Linux
-    chmod +x texlive.sh && \
-    # Get appropriate installer for the TeXLive version to be installed:
-    ./texlive.sh get_installer ${TL_VERSION} && \
+    chmod +x /usr/local/bin/texlive.py && \
+    python3 /usr/local/bin/texlive.py get-installer ${TL_VERSION} \
+        --mirror "${TL_MIRROR}" \
+        --archive-mirror "${TL_ARCHIVE_MIRROR}" \
+        --archive-name "${TL_INSTALL_ARCHIVE}" \
+        --cache-buster "${TL_CACHE_BUSTER}" \
+        --output "${TL_INSTALL_ARCHIVE}" && \
     # Get Eisvogel LaTeX template for pandoc,
     # see also #175 in that repo.
     wget -q https://github.com/Wandmalfarbe/pandoc-latex-template/releases/latest/download/${EISVOGEL_ARCHIVE}
@@ -188,6 +189,8 @@ FROM base AS main
 # Renew (https://stackoverflow.com/a/53682110):
 ARG TL_VERSION
 ARG _BUILD_CONTEXT_PREFIX
+ARG TL_MIRROR
+ARG TL_ARCHIVE_MIRROR
 
 ARG TL_PROFILE="texlive.profile"
 # Auxiliary, intermediate file:
@@ -233,7 +236,8 @@ WORKDIR ${INSTALL_DIR}
 
 # Copy custom file containing TeXLive installation instructions
 COPY ${_BUILD_CONTEXT_PREFIX}/config/${TL_PROFILE} ${TMP_TL_PROFILE}
-COPY --from=downloads /install-tl/ /texlive.sh ./
+COPY --from=downloads /install-tl/ ./install-tl/
+COPY ${_BUILD_CONTEXT_PREFIX}/scripts/texlive.py /usr/local/bin/texlive.py
 
 # Move to where pandoc looks for templates, see https://pandoc.org/MANUAL.html#option--data-dir
 COPY --from=downloads /eisvogel.latex /home/${USER}/.pandoc/templates/
@@ -249,7 +253,12 @@ RUN envsubst < "$TMP_TL_PROFILE" > "$TL_PROFILE" && \
     rm "$TMP_TL_PROFILE"
 
 # (Large) LaTeX layer
-RUN ./texlive.sh install "$TL_VERSION"
+RUN chmod +x /usr/local/bin/texlive.py && \
+    python3 /usr/local/bin/texlive.py install ${TL_VERSION} \
+        --mirror "${TL_MIRROR}" \
+        --archive-mirror "${TL_ARCHIVE_MIRROR}" \
+        --profile "${TL_PROFILE}" \
+        --workdir "${INSTALL_DIR}"
 
 # Remove no longer needed installation workdir.
 # Cannot run this earlier because it would be recreated for any succeeding `RUN`
