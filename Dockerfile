@@ -153,6 +153,7 @@ ENV LANG=C.utf8
 ENV LC_ALL=C.utf8
 
 FROM base AS downloads
+ARG TARGETARCH
 
 # Cannot share ARGs over multiple stages, see also:
 # https://github.com/moby/moby/issues/37345.
@@ -181,32 +182,32 @@ ARG INSTALL_TL_DIR="install-tl"
 COPY ${_BUILD_CONTEXT_PREFIX}/scripts/texlive.py /usr/local/bin/texlive.py
 COPY ${_BUILD_CONTEXT_PREFIX}/scripts/verify_checksum.sh /usr/local/bin/verify_checksum.sh
 
-RUN \
+RUN --mount=type=cache,target=/var/cache/texlive,id=texlive-cache-${TARGETARCH},sharing=locked \
     chmod +x /usr/local/bin/texlive.py /usr/local/bin/verify_checksum.sh && \
     python3 /usr/local/bin/texlive.py get-installer ${TL_VERSION} \
         --mirror "${TL_MIRROR}" \
         --archive-mirror "${TL_ARCHIVE_MIRROR}" \
         --archive-name "${TL_INSTALL_ARCHIVE}" \
         --cache-buster "${TL_CACHE_BUSTER}" \
-        --output "${TL_INSTALL_ARCHIVE}" && \
-    /usr/local/bin/verify_checksum.sh "${TL_INSTALL_ARCHIVE}" "${TL_INSTALL_SHA256}" && \
+        --output "/var/cache/texlive/${TL_INSTALL_ARCHIVE}" && \
+    /usr/local/bin/verify_checksum.sh "/var/cache/texlive/${TL_INSTALL_ARCHIVE}" "${TL_INSTALL_SHA256}" && \
     # Get Eisvogel LaTeX template for pandoc,
     # see also #175 in that repo.
-    wget -qO "${EISVOGEL_ARCHIVE}" https://github.com/Wandmalfarbe/pandoc-latex-template/releases/latest/download/${EISVOGEL_ARCHIVE} && \
-    /usr/local/bin/verify_checksum.sh "${EISVOGEL_ARCHIVE}" "${EISVOGEL_SHA256}"
+    wget -qO "/var/cache/texlive/${EISVOGEL_ARCHIVE}" https://github.com/Wandmalfarbe/pandoc-latex-template/releases/latest/download/${EISVOGEL_ARCHIVE} && \
+    /usr/local/bin/verify_checksum.sh "/var/cache/texlive/${EISVOGEL_ARCHIVE}" "${EISVOGEL_SHA256}"
 
-RUN --mount=type=cache,target=/var/cache/texlive \
+RUN --mount=type=cache,target=/var/cache/texlive,id=texlive-cache-${TARGETARCH},sharing=locked \
     mkdir ${INSTALL_TL_DIR} && \
     # Save archive to predictable directory, in case its name ever changes; see
     # https://unix.stackexchange.com/a/11019/374985.
     # The archive comes with a name in the form of 'install-tl-YYYYMMDD' from the source,
     # which is of course unpredictable.
-    tar --extract --file=${TL_INSTALL_ARCHIVE} --directory=${INSTALL_TL_DIR} --strip-components 1 && \
+    tar --extract --file=/var/cache/texlive/${TL_INSTALL_ARCHIVE} --directory=${INSTALL_TL_DIR} --strip-components 1 && \
     \
     # Prepare Eisvogel pandoc template (yields `eisvogel.latex` among other things):
     # Update since 02.2025: The code is now packed in a directory, so we have to
     # strip the first directory level.
-    tar --extract --file=${EISVOGEL_ARCHIVE} --strip-components=1
+    tar --extract --file=/var/cache/texlive/${EISVOGEL_ARCHIVE} --strip-components=1
 
 FROM base AS main
 
@@ -292,7 +293,7 @@ RUN envsubst < "$TMP_TL_PROFILE" > "$TL_PROFILE" && \
     chmod +x /usr/local/bin/entrypoint.sh
 
 # (Large) LaTeX layer
-RUN --mount=type=cache,target=/var/cache/texlive chmod +x /usr/local/bin/texlive.py && \
+RUN --mount=type=cache,target=/var/cache/texlive,id=texlive-cache-${TARGETARCH},sharing=locked chmod +x /usr/local/bin/texlive.py && \
     python3 /usr/local/bin/texlive.py install ${TL_VERSION} \
         --mirror "${TL_MIRROR}" \
         --archive-mirror "${TL_ARCHIVE_MIRROR}" \
