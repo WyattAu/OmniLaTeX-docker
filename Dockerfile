@@ -96,9 +96,7 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=
     # Install cabextract to install the Microsoft fonts
     cabextract \
     # Install unzip for font extraction
-    unzip \
-    # Install Libertinus font family
-    fonts-libertinus && \
+    unzip && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -309,6 +307,14 @@ RUN rm -rf "${INSTALL_DIR}"
 WORKDIR /${USER}
 
 USER ${USER}
+
+# Download and install Libertinus font
+RUN wget -qO /tmp/libertinus.zip https://github.com/alerque/libertinus/releases/latest/download/Libertinus-7.040.zip && \
+    unzip -q /tmp/libertinus.zip -d /tmp/libertinus && \
+    mkdir -p /usr/local/share/fonts/libertinus && \
+    cp /tmp/libertinus/Libertinus-*/static/OTF/*.otf /usr/local/share/fonts/libertinus/ && \
+    cp /tmp/libertinus/Libertinus-*/static/TTF/*.ttf /usr/local/share/fonts/libertinus/ && \
+    rm -rf /tmp/libertinus.zip /tmp/libertinus
 
 # Download and install Monaspace font
 RUN wget -qO /tmp/monaspace.zip https://github.com/githubnext/monaspace/releases/latest/download/monaspace-v1.000.zip && \
