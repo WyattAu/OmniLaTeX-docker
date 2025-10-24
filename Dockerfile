@@ -94,7 +94,11 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=
     # Required to embed git metadata into PDF from within Docker container:
     git \
     # Install cabextract to install the Microsoft fonts
-    cabextract && \
+    cabextract \
+    # Install unzip for font extraction
+    unzip \
+    # Install Libertinus font family
+    fonts-libertinus && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -305,6 +309,16 @@ RUN rm -rf "${INSTALL_DIR}"
 WORKDIR /${USER}
 
 USER ${USER}
+
+# Download and install Monaspace font
+RUN wget -qO /tmp/monaspace.zip https://github.com/githubnext/monaspace/releases/latest/download/monaspace-v1.000.zip && \
+    unzip -q /tmp/monaspace.zip -d /tmp/monaspace && \
+    mkdir -p /usr/local/share/fonts/monaspace && \
+    cp /tmp/monaspace/monaspace-*/fonts/otf/*.otf /usr/local/share/fonts/monaspace/ && \
+    cp /tmp/monaspace/monaspace-*/fonts/variable/*.ttf /usr/local/share/fonts/monaspace/ && \
+    rm -rf /tmp/monaspace.zip /tmp/monaspace && \
+    # Update system font cache
+    fc-cache -f -v
 
 # Load font cache, has to be done on each compilation otherwise
 # ("luaotfload | db : Font names database not found, generating new one.").
