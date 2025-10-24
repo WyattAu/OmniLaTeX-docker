@@ -307,7 +307,7 @@ RUN --mount=type=cache,target=/var/cache/texlive,id=texlive-cache-${TARGETARCH},
 RUN rm -rf "${INSTALL_DIR}"
 WORKDIR /${USER}
 
-USER ${USER}
+USER root
 
 # Download and install Libertinus font
 RUN wget -qO /tmp/libertinus.zip https://github.com/alerque/libertinus/releases/download/v7.040/Libertinus-7.040.zip && \
@@ -326,6 +326,16 @@ RUN wget -qO /tmp/monaspace.zip https://github.com/githubnext/monaspace/releases
     # Update system font cache
     fc-cache -f -v
 
+# Give back control to own user files; might be root-owned from previous copying processes
+# Make our class file available for the entire latex/TeXLive installation, see also
+# https://tex.stackexchange.com/a/1138/120853
+RUN mkdir -p /home/${USER}/texmf/tex/latex && \
+    wget -qO /home/${USER}/texmf/tex/latex/omnilatex.cls https://raw.githubusercontent.com/WyattAu/OmniLaTeX-template/main/omnilatex.cls && \
+    chown --recursive ${USER}:${USER} /home/${USER}/ && \
+    /usr/local/bin/verify_checksum.sh "/home/${USER}/texmf/tex/latex/omnilatex.cls" "${OMNILATEX_CLS_SHA256}"
+
+USER ${USER}
+
 # Load font cache, has to be done on each compilation otherwise
 # ("luaotfload | db : Font names database not found, generating new one.").
 # If not found, e.g. TeXLive 2012 and earlier, simply skip it. Will return exit code
@@ -333,8 +343,6 @@ RUN wget -qO /tmp/monaspace.zip https://github.com/githubnext/monaspace/releases
 # Warning: This is USER-specific. If the current `USER` for which we run this is not
 # the container user, the font will be regenerated for that new user.
 RUN luaotfload-tool --update || echo "luaotfload-tool did not succeed, skipping."
-
-USER root
 # Give back control to own user files; might be root-owned from previous copying processes
 # Make our class file available for the entire latex/TeXLive installation, see also
 # https://tex.stackexchange.com/a/1138/120853
