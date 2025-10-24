@@ -320,7 +320,7 @@ RUN wget -qO /tmp/libertinus.zip https://github.com/alerque/libertinus/releases/
 RUN wget -qO /tmp/monaspace.zip https://github.com/githubnext/monaspace/releases/latest/download/monaspace-v1.000.zip && \
     unzip -q /tmp/monaspace.zip -d /tmp/monaspace && \
     mkdir -p /usr/local/share/fonts/monaspace && \
-    find /tmp/monaspace \( -name "*.otf" -o -name "*.ttf" \) -print0 | xargs -0 -I {} cp {} /usr/local/share/fonts/monaspace/ && \
+    find /tmp/monaspace \( -name "*.otf" -o -name "*.ttf" \) -exec cp {} /usr/local/share/fonts/monaspace/ + && \
     rm -rf /tmp/monaspace.zip /tmp/monaspace && \
     # Update system font cache
     fc-cache -f -v
