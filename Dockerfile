@@ -310,14 +310,14 @@ WORKDIR /${USER}
 USER root
 
 # Download and install Libertinus font
-RUN wget -qO /tmp/libertinus.zip https://github.com/alerque/libertinus/releases/download/v7.040/Libertinus-7.040.zip && \
+RUN wget -qO /tmp/libertinus.zip https://github.com/alerque/libertinus/releases/download/v7.051/Libertinus-7.051.zip && \
     unzip -q /tmp/libertinus.zip -d /tmp/libertinus && \
     mkdir -p /usr/local/share/fonts/libertinus && \
     find /tmp/libertinus \( -name "*.otf" -o -name "*.ttf" \) -print0 | xargs -0 -I {} cp {} /usr/local/share/fonts/libertinus/ && \
     rm -rf /tmp/libertinus.zip /tmp/libertinus
 
 # Download and install Monaspace font
-RUN wget -qO /tmp/monaspace.zip https://github.com/githubnext/monaspace/releases/latest/download/monaspace-v1.000.zip && \
+RUN wget -qO /tmp/monaspace.zip https://github.com/githubnext/monaspace/releases/latest/download/monaspace-static-v1.301.zip && \
     unzip -q /tmp/monaspace.zip -d /tmp/monaspace && \
     mkdir -p /usr/local/share/fonts/monaspace && \
     find /tmp/monaspace \( -name "*.otf" -o -name "*.ttf" \) -exec cp {} /usr/local/share/fonts/monaspace/ + && \
