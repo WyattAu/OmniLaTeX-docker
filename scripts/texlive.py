@@ -56,7 +56,7 @@ def download_installer(version: str, archive_name: str, mirror: str, archive_mir
     logging.info("Downloaded installer to %s", output_path)
 
 
-def run_subprocess(args: Iterable[str], *, cwd: Optional[Path] = None, check: bool = True, env: Optional[dict[str, str]] = None, suppress_output: bool = False) -> subprocess.CompletedProcess:
+def run_subprocess(args: Iterable[str], *, cwd: Optional[Path] = None, check: bool = True, env: Optional[dict[str, str]] = None, suppress_output: bool = False) -> subprocess.CompletedProcess[str]:
     stdout = subprocess.PIPE if suppress_output else None
     stderr = subprocess.PIPE if suppress_output else None
     try:
