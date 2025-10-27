@@ -1,0 +1,52 @@
+# docker-compose.yml
+#
+# Defines the services for the development container.
+
+version: '3.8'
+
+services:
+  # The primary service for our development environment.
+  app:
+    # Use the pre-built, feature-rich omnilatex-docker image.
+    image: ghcr.io/wyattau/omnilatex-docker:latest
+
+    # Mount the entire project directory into the container's workspace.
+    # Using :cached improves performance on macOS
+    volumes:
+      - ..:/workspace:cached
+
+    # CRITICAL FIX: Override the image's ENTRYPOINT.
+    # We replace the default `latexmk` executable with a long-running
+    # command. This keeps the container alive so that VS Code can attach to it.
+    # All build commands will be executed via `build.py` inside this
+    # persistent container session.
+    entrypoint: sleep infinity
+
+    # Keep a pseudo-terminal allocated.
+    tty: true
+
+    # Set environment variables
+    environment:
+      # Signal that we are inside the container
+      - IS_OMNILATEX_CONTAINER=true
+      # Default to dev mode for faster local development
+      - BUILD_MODE=dev
+      # Optimize Python
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+
+    # Working directory
+    working_dir: /workspace
+
+    # Resource limits (adjust based on your system)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '4.0'
+    #       memory: 4G
+    #     reservations:
+    #       memory: 2G
+
+# Named volumes for better performance
+# Note: Removed problematic minted cache volume to avoid permission issues
+# Cache directory is now created automatically by build.py
