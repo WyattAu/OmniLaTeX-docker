@@ -91,6 +91,7 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=
     python3-pip \
     python3-venv \
     python3-yaml \
+    python3-tqdm \
     # Required to embed git metadata into PDF from within Docker container:
     git \
     # Install cabextract to install the Microsoft fonts
