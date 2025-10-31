@@ -332,6 +332,14 @@ RUN wget -qO /tmp/monaspace.zip https://github.com/githubnext/monaspace/releases
     # Update system font cache
     fc-cache -f -v
 
+# Download and install Atkinson Hyperlegible Next font
+RUN wget -qO /tmp/atkinson-next.zip https://fonts.google.com/download?family=Atkinson+Hyperlegible+Next && \
+    unzip -q /tmp/atkinson-next.zip -d /tmp/atkinson-next && \
+    mkdir -p /usr/local/share/fonts/atkinsonhyperlegiblenext && \
+    find /tmp/atkinson-next \( -name "*.otf" -o -name "*.ttf" \) -exec cp {} /usr/local/share/fonts/atkinsonhyperlegiblenext/ \; && \
+    rm -rf /tmp/atkinson-next.zip /tmp/atkinson-next && \
+    fc-cache -f -v
+
 # Give back control to own user files; might be root-owned from previous copying processes
 # Make our class file available for the entire latex/TeXLive installation, see also
 # https://tex.stackexchange.com/a/1138/120853
