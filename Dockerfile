@@ -333,10 +333,11 @@ RUN wget -qO /tmp/monaspace.zip https://github.com/githubnext/monaspace/releases
     fc-cache -f -v
 
 # Download and install Atkinson Hyperlegible Next font
-RUN wget -qO /tmp/atkinson-next.zip https://fonts.google.com/download?family=Atkinson+Hyperlegible+Next && \
+RUN wget -qO /tmp/atkinson-next.zip https://github.com/googlefonts/atkinson-hyperlegible-next/archive/refs/heads/main.zip && \
     unzip -q /tmp/atkinson-next.zip -d /tmp/atkinson-next && \
     mkdir -p /usr/local/share/fonts/atkinsonhyperlegiblenext && \
-    find /tmp/atkinson-next \( -name "*.otf" -o -name "*.ttf" \) -exec cp {} /usr/local/share/fonts/atkinsonhyperlegiblenext/ \; && \
+    find /tmp/atkinson-next/atkinson-hyperlegible-next-main/fonts/otf/ -name "*.otf" -exec cp {} /usr/local/share/fonts/atkinsonhyperlegiblenext/ \; && \
+    find /tmp/atkinson-next/atkinson-hyperlegible-next-main/fonts/ttf/ -name "*.ttf" -exec cp {} /usr/local/share/fonts/atkinsonhyperlegiblenext/ \; && \
     rm -rf /tmp/atkinson-next.zip /tmp/atkinson-next && \
     fc-cache -f -v
 
